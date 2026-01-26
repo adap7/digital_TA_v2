@@ -6,16 +6,15 @@ Set up Django backend foundation using Docker with a clean project structure and
 
 - [x] Backend runs inside Docker (no local virtualenv)
 - [X] Create Django project
-- [X] freeze requirements.txt
 - [X] Create core Django apps
   - [X] users
   - [X] courses
-- [ ] Install backend dependencies
-  - [ ] Django
-  - [ ] Django REST Framework
-- [ ] Freeze dependencies into requirements.txt
-- [ ] Run initial migrations
-- [ ] Verify Django development server runs in Docker
+- [X] Install backend dependencies
+  - [X] Django
+  - [X] Django REST Framework
+- [X] Freeze dependencies into requirements.txt
+- [X] Run initial migrations
+- [X] Verify Django development server runs in Docker
 
 ## Acceptance criteria
 
