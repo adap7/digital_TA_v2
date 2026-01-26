@@ -4,6 +4,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
 )
 from django.db import models
+from tenants.models import Tenant
 
 
 class UserRole(models.TextChoices):
@@ -38,6 +39,13 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
+
+    tenant = models.ForeignKey(
+    Tenant,
+    on_delete=models.PROTECT,
+    related_name="users",
+    )
+
 
     role = models.CharField(
         max_length=20,
