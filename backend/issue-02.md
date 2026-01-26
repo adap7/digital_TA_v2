@@ -5,10 +5,11 @@ Set up Django backend foundation using Docker with a clean project structure and
 ## Tasks
 
 - [x] Backend runs inside Docker (no local virtualenv)
-- [ ] Create Django project
-- [ ] Create core Django apps
-  - [ ] users
-  - [ ] courses
+- [X] Create Django project
+- [X] freeze requirements.txt
+- [X] Create core Django apps
+  - [X] users
+  - [X] courses
 - [ ] Install backend dependencies
   - [ ] Django
   - [ ] Django REST Framework
