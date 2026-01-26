@@ -6,27 +6,27 @@ Set up the repository and basic project structure so development can start clean
 
 \## Tasks
 
-\- \[ ] Create GitHub repository
+\- \[X] Create GitHub repository
 
-\- \[ ] Initialize git locally
+\- \[X] Initialize git locally
 
-\- \[ ] Add README.md
+\- \[X] Add README.md
 
-\- \[ ] Add .gitignore (Python + Node + OS)
+\- \[X] Add .gitignore (Python + Node + OS)
 
-\- \[ ] Decide repo structure (backend / frontend)
+\- \[X] Decide repo structure (backend / frontend)
 
-\- \[ ] Add basic folder structure
+\- \[X] Add basic folder structure
 
-&nbsp; - \[ ] backend/
+&nbsp; - \[X] backend/
 
-&nbsp; - \[ ] frontend/
+&nbsp; - \[X] frontend/
 
-&nbsp; - \[ ] docs/
+&nbsp; - \[X] docs/
 
-\- \[ ] Add initial documentation file
+\- \[X] Add initial documentation file
 
-\- \[ ] Make first commit
+\- \[X] Make first commit
 
 
 
