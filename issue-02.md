@@ -1,44 +1,24 @@
-\## Goal
+## Goal
 
-Set up Django backend foundation with a clean project structure and dependencies.
+Set up Django backend foundation using Docker with a clean project structure and dependencies.
 
+## Tasks
 
+- [x] Backend runs inside Docker (no local virtualenv)
+- [ ] Create Django project
+- [ ] Create core Django apps
+  - [ ] users
+  - [ ] courses
+- [ ] Install backend dependencies
+  - [ ] Django
+  - [ ] Django REST Framework
+- [ ] Freeze dependencies into requirements.txt
+- [ ] Run initial migrations
+- [ ] Verify Django development server runs in Docker
 
-\## Tasks
+## Acceptance criteria
 
-\- \[ ] Create Python virtual environment
-
-\- \[ ] Activate virtual environment
-
-\- \[ ] Install backend dependencies
-
-&nbsp; - \[ ] Django
-
-&nbsp; - \[ ] Django REST Framework
-
-\- \[ ] Freeze requirements.txt
-
-\- \[ ] Create Django project
-
-\- \[ ] Create core Django apps
-
-&nbsp; - \[ ] users
-
-&nbsp; - \[ ] courses
-
-\- \[ ] Run initial migrations
-
-\- \[ ] Verify Django development server runs
-
-
-
-\## Acceptance criteria
-
-\- Django server starts without errors
-
-\- Admin panel loads
-
-\- Project structure supports future auth \& tenancy
-
-\- requirements.txt exists and is correct
-
+- Django server starts without errors inside Docker
+- Admin panel loads
+- Project structure supports future auth & multi-tenancy
+- requirements.txt exists and is correct
