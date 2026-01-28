@@ -47,3 +47,25 @@ class CourseMembership(models.Model):
 
     def __str__(self):
         return f"{self.user.email} → {self.course.code} ({self.role})"
+
+class Topic(models.Model):
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="topics",
+    )
+
+    title = models.CharField(max_length=255)
+
+    order_index = models.PositiveIntegerField()
+
+    is_published = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["order_index"]
+        unique_together = ("course", "order_index")
+
+    def __str__(self):
+        return f"{self.course.code} — {self.title}"
