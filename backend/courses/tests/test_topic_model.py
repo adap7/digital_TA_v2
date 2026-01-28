@@ -1,6 +1,7 @@
 from django.test import TestCase
 from tenants.models import Tenant
-from courses.models import Course, Topic
+from courses.models import Course
+from topics.models import Topic
 
 
 class TopicModelTest(TestCase):

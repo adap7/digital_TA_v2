@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "tenants",
     "users",
     "courses",
+    "topics",
     "api",
 ]
 
