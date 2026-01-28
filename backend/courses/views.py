@@ -1,12 +1,24 @@
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
 
-from api.mixins import TenantScopedQuerysetMixin
 from .models import Course
-from .serializers import CourseSerializer
+from .serializers import CourseListSerializer
+from users.models import UserRole
 
 
-class CourseListView(TenantScopedQuerysetMixin, ListAPIView):
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer
+class CourseListView(ListAPIView):
+    serializer_class = CourseListSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+
+        # Admin: all courses in tenant
+        if user.role == UserRole.ADMIN:
+            return Course.objects.filter(tenant=user.tenant)
+
+        # Teacher or Student: only assigned courses
+        return Course.objects.filter(
+            tenant=user.tenant,
+            memberships__user=user,
+        ).distinct()
