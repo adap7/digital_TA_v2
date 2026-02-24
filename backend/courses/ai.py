@@ -1,6 +1,11 @@
 import anthropic
+from openai import OpenAI
+from django.conf import settings
 
-MODEL = "claude-sonnet-4-6"
+MODEL_CLAUDE   = "claude-sonnet-4-6"
+MODEL_GPT4O    = "gpt-4o"
+MODEL_DEEPSEEK = "deepseek-chat"
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
 def _build_system_prompt(exercise) -> str:
@@ -40,26 +45,55 @@ def _format_answer(student_answer: dict) -> str:
     return str(student_answer)
 
 
-def evaluate_submission(exercise, student_answer: dict) -> str:
-    """
-    Call Claude to evaluate a student's answer.
-    Returns AI feedback text.
-    Raises anthropic.APIError on failure — the view should catch this and return 503.
-    """
+def _call_claude(system: str, messages: list) -> str:
     client = anthropic.Anthropic()
-
     response = client.messages.create(
-        model=MODEL,
+        model=MODEL_CLAUDE,
         max_tokens=1024,
-        system=_build_system_prompt(exercise),
-        messages=[
-            {
-                "role": "user",
-                "content": f"Here is my answer:\n\n{_format_answer(student_answer)}",
-            }
-        ],
+        system=system,
+        messages=messages,
     )
     return response.content[0].text
+
+
+def _call_openai(model: str, system: str, messages: list, api_key: str, base_url: str = None) -> str:
+    kwargs = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+    client = OpenAI(**kwargs)
+    response = client.chat.completions.create(
+        model=model,
+        max_tokens=1024,
+        messages=[{"role": "system", "content": system}] + messages,
+    )
+    return response.choices[0].message.content
+
+
+def _dispatch(exercise, system: str, messages: list) -> str:
+    model = exercise.course.ai_model
+    if model == MODEL_CLAUDE:
+        return _call_claude(system, messages)
+    elif model == MODEL_GPT4O:
+        return _call_openai(MODEL_GPT4O, system, messages, settings.OPENAI_API_KEY)
+    elif model == MODEL_DEEPSEEK:
+        return _call_openai(MODEL_DEEPSEEK, system, messages, settings.DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL)
+    raise ValueError(f"Unknown AI model: {model}")
+
+
+def evaluate_submission(exercise, student_answer: dict) -> str:
+    """
+    Evaluate a student's answer using the course's configured AI model.
+    Returns feedback text.
+    Raises on failure — the view should catch this and return 503.
+    """
+    system = _build_system_prompt(exercise)
+    messages = [
+        {
+            "role": "user",
+            "content": f"Here is my answer:\n\n{_format_answer(student_answer)}",
+        }
+    ]
+    return _dispatch(exercise, system, messages)
 
 
 def get_followup_response(exercise, messages) -> str:
@@ -67,19 +101,14 @@ def get_followup_response(exercise, messages) -> str:
     Continue the AI chat for a submission given its full message history.
     `messages` is an ordered queryset/list of SubmissionMessage objects.
     Returns the AI's next response text.
-    Raises anthropic.APIError on failure — the view should catch this and return 503.
+    Raises on failure — the view should catch this and return 503.
     """
-    client = anthropic.Anthropic()
-
-    api_messages = []
-    for msg in messages:
-        role = "user" if msg.role == "student" else "assistant"
-        api_messages.append({"role": role, "content": msg.content})
-
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=1024,
-        system=_build_system_prompt(exercise),
-        messages=api_messages,
-    )
-    return response.content[0].text
+    system = _build_system_prompt(exercise)
+    api_messages = [
+        {
+            "role": "user" if msg.role == "student" else "assistant",
+            "content": msg.content,
+        }
+        for msg in messages
+    ]
+    return _dispatch(exercise, system, api_messages)

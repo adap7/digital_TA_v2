@@ -6,6 +6,12 @@ from django.utils import timezone
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
+class AiModel(models.TextChoices):
+    CLAUDE   = "claude-sonnet-4-6", "Claude Sonnet (Anthropic)"
+    GPT4O    = "gpt-4o",            "GPT-4o (OpenAI)"
+    DEEPSEEK = "deepseek-chat",     "DeepSeek Chat"
+
+
 class Course(models.Model):
     tenant = models.ForeignKey(
         Tenant,
@@ -13,8 +19,13 @@ class Course(models.Model):
         related_name="courses",
     )
 
-    title = models.CharField(max_length=255)
-    code = models.CharField(max_length=50)
+    title    = models.CharField(max_length=255)
+    code     = models.CharField(max_length=50)
+    ai_model = models.CharField(
+        max_length=50,
+        choices=AiModel.choices,
+        default=AiModel.CLAUDE,
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 

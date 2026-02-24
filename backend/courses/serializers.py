@@ -7,6 +7,12 @@ class CourseListSerializer(serializers.ModelSerializer):
         model = Course
         fields = ["id", "code", "title"]
 
+
+class CourseDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course
+        fields = ["id", "code", "title", "ai_model"]
+
 class ExerciseStudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exercise

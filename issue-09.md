@@ -64,7 +64,7 @@ Allow students to submit answers to published exercises and receive immediate AI
 
 &nbsp; - [ ] `get_followup_response(exercise, messages)` — continues conversation given full history
 
-- [ ] Use `claude-sonnet-4-6` via Anthropic SDK
+- [ ] Use `claude-sonnet-4-6` via Anthropic SDK, Use GPT via OpenAI and Use DeepSeek
 
 - [ ] Pass exercise prompt, type, difficulty, and answer\_key to LLM (answer\_key never returned to student)
 

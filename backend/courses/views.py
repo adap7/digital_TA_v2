@@ -9,6 +9,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Course, Exercise, CourseMembership
 from .serializers import (
     CourseListSerializer,
+    CourseDetailSerializer,
     ExerciseStudentSerializer,
     ExerciseTeacherSerializer,
 )
@@ -30,6 +31,26 @@ class CourseListView(ListAPIView):
             tenant=user.tenant,
             memberships__user=user,
         ).distinct()
+
+# COURSE DETAIL
+class CourseDetailView(generics.RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated, IsTeacherOrAdmin]
+    serializer_class = CourseDetailSerializer
+
+    def get_queryset(self):
+        return Course.objects.filter(tenant=self.request.user.tenant)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        if user.role == UserRole.TEACHER:
+            if not CourseMembership.objects.filter(
+                course=serializer.instance,
+                user=user,
+                role=CourseMembership.Role.TEACHER,
+            ).exists():
+                raise PermissionDenied("Not assigned to this course.")
+        serializer.save()
+
 
 # COURSE EXERCISE LIST
 class CourseExerciseListView(generics.ListCreateAPIView):
