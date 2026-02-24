@@ -192,3 +192,52 @@ class ExerciseVisibilityTest(APITestCase):
             format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_student_cannot_create_exercise(self):
+        self.client.force_authenticate(self.student)
+        data = {
+            "course": self.course.id,
+            "created_by": self.student.id,
+            "type": "free_text",
+            "prompt": "A question.",
+            "order_index": 1,
+        }
+        response = self.client.post(
+            f"/api/v1/courses/{self.course.id}/exercises/",
+            data,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_cannot_update_exercise(self):
+        self.exercise.submit_for_review()
+        self.exercise.publish(self.teacher)
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.student,
+            role=CourseMembership.Role.STUDENT,
+        )
+        self.client.force_authenticate(self.student)
+        response = self.client.patch(
+            f"/api/v1/courses/exercises/{self.exercise.id}/",
+            {"prompt": "Changed."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_cannot_submit_for_review(self):
+        self.client.force_authenticate(self.student)
+        response = self.client.post(
+            f"/api/v1/courses/exercises/{self.exercise.id}/submit-for-review/"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_unenrolled_student_cannot_see_exercises(self):
+        self.exercise.submit_for_review()
+        self.exercise.publish(self.teacher)
+        self.client.force_authenticate(self.student)
+        response = self.client.get(
+            f"/api/v1/courses/{self.course.id}/exercises/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
