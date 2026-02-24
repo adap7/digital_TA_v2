@@ -122,7 +122,7 @@ class ExerciseVisibilityTest(APITestCase):
         )
         self.client.force_authenticate(self.teacher)
         response = self.client.post(
-            f"/api/v1/courses/exercises/{self.exercise.id}/submit-for-review/"
+            f"/api/v1/exercises/{self.exercise.id}/submit-for-review/"
         )
         self.assertEqual(response.status_code, 200)
         self.exercise.refresh_from_db()
@@ -137,7 +137,7 @@ class ExerciseVisibilityTest(APITestCase):
         self.exercise.submit_for_review()
         self.client.force_authenticate(self.teacher)
         response = self.client.post(
-            f"/api/v1/courses/exercises/{self.exercise.id}/publish/"
+            f"/api/v1/exercises/{self.exercise.id}/publish/"
         )
         self.assertEqual(response.status_code, 200)
         self.exercise.refresh_from_db()
@@ -153,7 +153,7 @@ class ExerciseVisibilityTest(APITestCase):
         self.exercise.publish(self.teacher)
         self.client.force_authenticate(self.teacher)
         response = self.client.post(
-            f"/api/v1/courses/exercises/{self.exercise.id}/unpublish/"
+            f"/api/v1/exercises/{self.exercise.id}/unpublish/"
         )
         self.assertEqual(response.status_code, 200)
         self.exercise.refresh_from_db()
@@ -234,7 +234,7 @@ class ExerciseVisibilityTest(APITestCase):
         )
         self.client.force_authenticate(self.student)
         response = self.client.patch(
-            f"/api/v1/courses/exercises/{self.exercise.id}/",
+            f"/api/v1/exercises/{self.exercise.id}/",
             {"prompt": "Changed."},
             format="json",
         )
@@ -243,7 +243,7 @@ class ExerciseVisibilityTest(APITestCase):
     def test_student_cannot_submit_for_review(self):
         self.client.force_authenticate(self.student)
         response = self.client.post(
-            f"/api/v1/courses/exercises/{self.exercise.id}/submit-for-review/"
+            f"/api/v1/exercises/{self.exercise.id}/submit-for-review/"
         )
         self.assertEqual(response.status_code, 403)
 
@@ -296,7 +296,7 @@ class ExerciseVisibilityTest(APITestCase):
     def test_teacher_cannot_update_exercise_in_unassigned_course(self):
         self.client.force_authenticate(self.teacher)
         response = self.client.patch(
-            f"/api/v1/courses/exercises/{self.exercise.id}/",
+            f"/api/v1/exercises/{self.exercise.id}/",
             {"prompt": "Changed."},
             format="json",
         )
@@ -305,6 +305,22 @@ class ExerciseVisibilityTest(APITestCase):
     def test_teacher_cannot_submit_review_in_unassigned_course(self):
         self.client.force_authenticate(self.teacher)
         response = self.client.post(
-            f"/api/v1/courses/exercises/{self.exercise.id}/submit-for-review/"
+            f"/api/v1/exercises/{self.exercise.id}/submit-for-review/"
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_cross_tenant_exercise_access_forbidden(self):
+        other_tenant = Tenant.objects.create(name="Other", slug="other")
+        other_student = User.objects.create_user(
+            email="other@other.com",
+            password="pass",
+            role="student",
+            tenant=other_tenant,
+        )
+        self.exercise.submit_for_review()
+        self.exercise.publish(self.teacher)
+        self.client.force_authenticate(other_student)
+        response = self.client.get(
+            f"/api/v1/courses/{self.course.id}/exercises/"
+        )
+        self.assertEqual(response.status_code, 404)
