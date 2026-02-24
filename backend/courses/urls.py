@@ -1,9 +1,14 @@
-from django.contrib import admin
-from django.urls import path, include
+from django.urls import path
+from .views import (
+    CourseExerciseListView,
+    ExerciseDetailView,
+    SubmitForReviewView,
+    PublishExerciseView,
+)
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("api/v1/", include("api.urls")),
-    path("api/v1/courses/", include("courses.urls")),
+    path("<int:course_id>/exercises/", CourseExerciseListView.as_view()),
+    path("exercises/<int:pk>/", ExerciseDetailView.as_view()),
+    path("exercises/<int:pk>/submit-for-review/", SubmitForReviewView.as_view()),
+    path("exercises/<int:pk>/publish/", PublishExerciseView.as_view()),
 ]
-

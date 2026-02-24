@@ -139,6 +139,3 @@ Exercises are the core unit students will practice. Teachers/admins can create a
 \- Sensitive fields never leak to students
 
 \- Tests pass in Docker: `docker compose run backend python manage.py test`
-
-
-

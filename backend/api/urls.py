@@ -5,4 +5,5 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
     path("courses/", CourseListView.as_view(), name="course-list"),
     path("", include("topics.urls")),
+    path("courses/", include("courses.urls")),
 ]
