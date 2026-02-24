@@ -10,6 +10,7 @@ class TopicSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "order_index",
+            "parent",
             "is_published",
             "created_at",
         ]
@@ -21,5 +22,6 @@ class TopicCreateSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "order_index",
+            "parent",
             "is_published",
         ]
