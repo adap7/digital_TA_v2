@@ -199,3 +199,64 @@ class Exercise(models.Model):
     # REPRESENTATION
     def __str__(self):
         return f"{self.course.code} — {self.title or 'Exercise'}"
+
+
+class Submission(models.Model):
+    # RELATIONS
+    exercise = models.ForeignKey(
+        Exercise,
+        on_delete=models.CASCADE,
+        related_name="submissions",
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="submissions",
+    )
+
+    # ANSWER
+    answer = models.JSONField()
+
+    # GRADING
+    attempt_number = models.PositiveSmallIntegerField()
+    is_correct = models.BooleanField(null=True, blank=True)
+
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    # VALIDATION
+    def clean(self):
+        if self.student.tenant != self.exercise.course.tenant:
+            raise ValidationError("Student and exercise must belong to the same tenant.")
+
+    # META CONFIG
+    class Meta:
+        ordering = ["submitted_at"]
+        indexes = [
+            models.Index(fields=["exercise", "student"]),
+            models.Index(fields=["student"]),
+        ]
+
+    # REPRESENTATION
+    def __str__(self):
+        return f"Submission #{self.attempt_number} by {self.student.email} on {self.exercise}"
+
+
+class SubmissionMessage(models.Model):
+    class Role(models.TextChoices):
+        STUDENT = "student", "Student"
+        ASSISTANT = "assistant", "Assistant"
+
+    submission = models.ForeignKey(
+        Submission,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    role = models.CharField(max_length=20, choices=Role.choices)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"[{self.role}] on submission {self.submission_id}"
