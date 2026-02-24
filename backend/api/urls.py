@@ -6,6 +6,9 @@ from courses.views import (
     SubmitForReviewView,
     PublishExerciseView,
     UnpublishExerciseView,
+    ExerciseSubmissionListView,
+    SubmissionDetailView,
+    SubmissionMessageView,
 )
 from django.urls import include, path
 
@@ -19,4 +22,7 @@ urlpatterns = [
     path("exercises/<int:pk>/submit-for-review/", SubmitForReviewView.as_view()),
     path("exercises/<int:pk>/publish/", PublishExerciseView.as_view()),
     path("exercises/<int:pk>/unpublish/", UnpublishExerciseView.as_view()),
+    path("exercises/<int:exercise_id>/submissions/", ExerciseSubmissionListView.as_view()),
+    path("submissions/<int:pk>/", SubmissionDetailView.as_view()),
+    path("submissions/<int:pk>/messages/", SubmissionMessageView.as_view()),
 ]
