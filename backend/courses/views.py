@@ -122,6 +122,17 @@ class ExerciseDetailView(generics.RetrieveUpdateAPIView):
 
         return super().update(request, *args, **kwargs)
 
+    def perform_update(self, serializer):
+        user = self.request.user
+        if user.role == UserRole.TEACHER:
+            if not CourseMembership.objects.filter(
+                course=serializer.instance.course,
+                user=user,
+                role=CourseMembership.Role.TEACHER,
+            ).exists():
+                raise PermissionDenied("Not assigned to this course.")
+        super().perform_update(serializer)
+
 # WORKFLOW
 class SubmitForReviewView(APIView):
     permission_classes = [IsAuthenticated, IsTeacherOrAdmin]
@@ -132,6 +143,7 @@ class SubmitForReviewView(APIView):
             pk=pk,
             course__tenant=request.user.tenant,
         )
+        self.check_object_permissions(request, exercise)
 
         exercise.submit_for_review()
         return Response({"status": "submitted"}, status=200)
@@ -146,6 +158,7 @@ class PublishExerciseView(APIView):
             pk=pk,
             course__tenant=request.user.tenant,
         )
+        self.check_object_permissions(request, exercise)
 
         exercise.publish(request.user)
         return Response({"status": "published"}, status=200)
@@ -160,6 +173,7 @@ class UnpublishExerciseView(APIView):
             pk=pk,
             course__tenant=request.user.tenant,
         )
+        self.check_object_permissions(request, exercise)
 
         exercise.unpublish(request.user)
         return Response({"status": "unpublished"}, status=200)

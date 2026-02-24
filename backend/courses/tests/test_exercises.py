@@ -115,6 +115,11 @@ class ExerciseVisibilityTest(APITestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_submit_for_review_changes_status(self):
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.teacher,
+            role=CourseMembership.Role.TEACHER,
+        )
         self.client.force_authenticate(self.teacher)
         response = self.client.post(
             f"/api/v1/courses/exercises/{self.exercise.id}/submit-for-review/"
@@ -124,6 +129,11 @@ class ExerciseVisibilityTest(APITestCase):
         self.assertEqual(self.exercise.status, Exercise.Status.IN_REVIEW)
 
     def test_publish_changes_status(self):
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.teacher,
+            role=CourseMembership.Role.TEACHER,
+        )
         self.exercise.submit_for_review()
         self.client.force_authenticate(self.teacher)
         response = self.client.post(
@@ -134,6 +144,11 @@ class ExerciseVisibilityTest(APITestCase):
         self.assertEqual(self.exercise.status, Exercise.Status.PUBLISHED)
 
     def test_unpublish_changes_status(self):
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.teacher,
+            role=CourseMembership.Role.TEACHER,
+        )
         self.exercise.submit_for_review()
         self.exercise.publish(self.teacher)
         self.client.force_authenticate(self.teacher)
@@ -241,3 +256,55 @@ class ExerciseVisibilityTest(APITestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 0)
+
+    def test_admin_can_create_exercise_without_membership(self):
+        admin = User.objects.create_user(
+            email="admin@test.com",
+            password="pass",
+            role="admin",
+            tenant=self.tenant,
+        )
+        self.client.force_authenticate(admin)
+        data = {
+            "course": self.course.id,
+            "created_by": admin.id,
+            "type": "free_text",
+            "prompt": "Admin question.",
+            "order_index": 1,
+        }
+        response = self.client.post(
+            f"/api/v1/courses/{self.course.id}/exercises/",
+            data,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_admin_can_see_draft_exercises(self):
+        admin = User.objects.create_user(
+            email="admin@test.com",
+            password="pass",
+            role="admin",
+            tenant=self.tenant,
+        )
+        self.client.force_authenticate(admin)
+        response = self.client.get(
+            f"/api/v1/courses/{self.course.id}/exercises/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
+    def test_teacher_cannot_update_exercise_in_unassigned_course(self):
+        self.client.force_authenticate(self.teacher)
+        response = self.client.patch(
+            f"/api/v1/courses/exercises/{self.exercise.id}/",
+            {"prompt": "Changed."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_teacher_cannot_submit_review_in_unassigned_course(self):
+        self.client.force_authenticate(self.teacher)
+        response = self.client.post(
+            f"/api/v1/courses/exercises/{self.exercise.id}/submit-for-review/"
+        )
+        self.assertEqual(response.status_code, 403)
