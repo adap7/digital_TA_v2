@@ -131,3 +131,17 @@ class PublishExerciseView(APIView):
 
         exercise.publish(request.user)
         return Response({"status": "published"}, status=200)
+
+
+class UnpublishExerciseView(APIView):
+    permission_classes = [IsAuthenticated, IsTeacherOrAdmin]
+
+    def post(self, request, pk):
+        exercise = get_object_or_404(
+            Exercise,
+            pk=pk,
+            course__tenant=request.user.tenant,
+        )
+
+        exercise.unpublish(request.user)
+        return Response({"status": "unpublished"}, status=200)

@@ -4,6 +4,7 @@ from .views import (
     ExerciseDetailView,
     SubmitForReviewView,
     PublishExerciseView,
+    UnpublishExerciseView,
 )
 
 urlpatterns = [
@@ -11,4 +12,5 @@ urlpatterns = [
     path("exercises/<int:pk>/", ExerciseDetailView.as_view()),
     path("exercises/<int:pk>/submit-for-review/", SubmitForReviewView.as_view()),
     path("exercises/<int:pk>/publish/", PublishExerciseView.as_view()),
+    path("exercises/<int:pk>/unpublish/", UnpublishExerciseView.as_view()),
 ]
