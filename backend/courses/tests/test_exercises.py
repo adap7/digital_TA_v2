@@ -46,6 +46,11 @@ class ExerciseVisibilityTest(APITestCase):
         self.assertEqual(len(response.data), 0)
 
     def test_student_can_see_published(self):
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.student,
+            role=CourseMembership.Role.STUDENT,
+        )
         self.exercise.submit_for_review()
         self.exercise.publish(self.teacher)
         self.client.force_authenticate(self.student)
@@ -56,6 +61,11 @@ class ExerciseVisibilityTest(APITestCase):
         self.assertEqual(len(response.data), 1)
 
     def test_student_cannot_see_answer_key(self):
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.student,
+            role=CourseMembership.Role.STUDENT,
+        )
         self.exercise.answer_key = {"correct": "4"}
         self.exercise.save()
         self.exercise.submit_for_review()

@@ -49,6 +49,12 @@ class CourseExerciseListView(generics.ListCreateAPIView):
         queryset = Exercise.objects.filter(course=course)
 
         if user.role == UserRole.STUDENT:
+            if not CourseMembership.objects.filter(
+                course=course,
+                user=user,
+                role=CourseMembership.Role.STUDENT,
+            ).exists():
+                return Exercise.objects.none()
             return queryset.filter(status=Exercise.Status.PUBLISHED)
 
         return queryset
@@ -94,7 +100,14 @@ class ExerciseDetailView(generics.RetrieveUpdateAPIView):
         )
 
         if user.role == UserRole.STUDENT:
-            return queryset.filter(status=Exercise.Status.PUBLISHED)
+            enrolled_course_ids = CourseMembership.objects.filter(
+                user=user,
+                role=CourseMembership.Role.STUDENT,
+            ).values_list("course_id", flat=True)
+            return queryset.filter(
+                status=Exercise.Status.PUBLISHED,
+                course_id__in=enrolled_course_ids,
+            )
 
         return queryset
 
