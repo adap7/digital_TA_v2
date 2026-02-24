@@ -3,6 +3,7 @@ from django.urls import reverse
 from users.models import User
 from courses.models import Course, Exercise, CourseMembership
 from tenants.models import Tenant
+from topics.models import Topic
 
 
 class ExerciseVisibilityTest(APITestCase):
@@ -132,3 +133,52 @@ class ExerciseVisibilityTest(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.exercise.refresh_from_db()
         self.assertEqual(self.exercise.status, Exercise.Status.DRAFT)
+
+    def test_exercise_can_be_assigned_topic_in_same_course(self):
+        topic = Topic.objects.create(course=self.course, title="Algebra")
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.teacher,
+            role=CourseMembership.Role.TEACHER,
+        )
+        self.client.force_authenticate(self.teacher)
+        data = {
+            "course": self.course.id,
+            "created_by": self.teacher.id,
+            "type": "free_text",
+            "prompt": "Solve for x.",
+            "order_index": 1,
+            "topic": topic.id,
+        }
+        response = self.client.post(
+            f"/api/v1/courses/{self.course.id}/exercises/",
+            data,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+
+    def test_exercise_cannot_be_assigned_topic_from_different_course(self):
+        other_course = Course.objects.create(
+            tenant=self.tenant, title="Physics", code="P101"
+        )
+        topic = Topic.objects.create(course=other_course, title="Mechanics")
+        CourseMembership.objects.create(
+            course=self.course,
+            user=self.teacher,
+            role=CourseMembership.Role.TEACHER,
+        )
+        self.client.force_authenticate(self.teacher)
+        data = {
+            "course": self.course.id,
+            "created_by": self.teacher.id,
+            "type": "free_text",
+            "prompt": "Solve for x.",
+            "order_index": 1,
+            "topic": topic.id,
+        }
+        response = self.client.post(
+            f"/api/v1/courses/{self.course.id}/exercises/",
+            data,
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)

@@ -4,7 +4,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import Course, Exercise, CourseMembership
 from .serializers import (
@@ -74,6 +74,11 @@ class CourseExerciseListView(generics.ListCreateAPIView):
                 role=CourseMembership.Role.TEACHER,
             ).exists():
                 raise PermissionDenied("Not assigned to this course.")
+
+        # Topic must belong to the same course
+        topic = serializer.validated_data.get('topic')
+        if topic and topic.course != course:
+            raise ValidationError("Topic must belong to the same course.")
 
         serializer.save(course=course, created_by=user)
 

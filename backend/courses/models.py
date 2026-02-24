@@ -141,6 +141,10 @@ class Exercise(models.Model):
         if self.created_by.tenant != self.course.tenant:
             raise ValidationError("Creator must belong to same tenant.")
 
+        # Ensure topic belongs to the same course
+        if self.topic and self.topic.course != self.course:
+            raise ValidationError("Topic must belong to the same course as the exercise.")
+
     # WORKFLOW METHODS
     def submit_for_review(self):
         if self.status != self.Status.DRAFT:
