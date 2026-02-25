@@ -1,3 +1,18 @@
+"""
+    Course + exercise + submission domain models.
+
+    This module implements a multi-tenant academic platform where:
+        - Courses belong to tenants
+        - Exercises belong to courses
+        - Students submit answers with AI evaluation
+        - Teachers can override AI grading
+
+    Security invariants:
+        - Cross-tenant relations are forbidden
+        - Students can only access their own submissions
+        - Teachers can access submissions within assigned courses
+        - AI answer_key must never be exposed to students
+"""
 from django.db import models
 
 from tenants.models import Tenant
@@ -7,12 +22,21 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 
 class AiModel(models.TextChoices):
+    """
+        Defines which LLM provider a course uses for exercise evaluation.
+        This allows per-course AI strategy selection and future provider expansion.
+    """
     CLAUDE   = "claude-sonnet-4-6", "Claude Sonnet (Anthropic)"
     GPT4O    = "gpt-4o",            "GPT-4o (OpenAI)"
     DEEPSEEK = "deepseek-chat",     "DeepSeek Chat"
 
 
 class Course(models.Model):
+    """
+        Represents a tenant-scoped course.
+        Tenant isolation rule:
+            - All related objects (memberships, exercises, submissions) must belong to the same tenant as the course.
+    """
     tenant = models.ForeignKey(
         Tenant,
         on_delete=models.CASCADE,
@@ -34,6 +58,15 @@ class Course(models.Model):
 
 
 class CourseMembership(models.Model):
+    """
+        Maps users to courses with role-based permissions.
+        Roles:
+            - student: can submit answers and view own submissions
+            - teacher: can create/review exercises and review submissions
+
+        Constraint:
+            - A user may have only one membership per course.
+    """
     class Role(models.TextChoices):
         STUDENT = "student", "Student"
         TEACHER = "teacher", "Teacher"
@@ -63,6 +96,16 @@ class CourseMembership(models.Model):
         return f"{self.user.email} → {self.course.code} ({self.role})"
 
 class Exercise(models.Model):
+    """
+        Represents a learning activity inside a course.
+        Lifecycle: draft → in_review → published
+        Key design rules:
+            - MCQ exercises must define choices and answer_key
+            - Non-MCQ exercises must not define choices
+            - Reviewer must belong to same tenant
+            - Creator must belong to same tenant
+            - Topic must belong to the same course
+    """
     # ENUMS
     class Type(models.TextChoices):
         MCQ = "mcq", "Multiple Choice"
@@ -134,9 +177,10 @@ class Exercise(models.Model):
     # VALIDATION
     def clean(self):
         """
-        Enforce data integrity rules.
+            Enforces domain integrity and tenant safety.
+            Note:
+                Validation here protects against accidental misuse but should be complemented with serializer/view-level permission checks.
         """
-
         # MCQ must have choices
         if self.type == self.Type.MCQ and not self.choices:
             raise ValidationError("MCQ exercises must define choices.")
@@ -166,6 +210,13 @@ class Exercise(models.Model):
         self.save(update_fields=["status", "updated_at"])
 
     def publish(self, reviewer):
+        """
+            Publishes an exercise after review.
+            Security:
+                - Cross-tenant publishing is forbidden
+            Workflow invariant:
+                - Only exercises in IN_REVIEW state can be published
+        """
         if self.status != self.Status.IN_REVIEW:
             raise ValidationError("Exercise must be in review before publishing.")
 
@@ -214,6 +265,16 @@ class Exercise(models.Model):
 
 
 class Submission(models.Model):
+    """
+        Represents a student's attempt to answer an exercise.
+        Features:
+            - Multiple attempts allowed
+            - AI grading stored in is_correct
+            - Teacher review can override AI grading
+            - Multi-turn AI conversation stored in SubmissionMessage
+        Security invariant:
+            - Student and exercise must belong to same tenant
+    """
     # RELATIONS
     exercise = models.ForeignKey(
         Exercise,
@@ -235,6 +296,20 @@ class Submission(models.Model):
 
     submitted_at = models.DateTimeField(auto_now_add=True)
 
+    # TEACHER REVIEW
+    # These fields allow human override of AI grading.
+    # AI grading remains stored and is never deleted.
+    teacher_comment = models.TextField(blank=True, default="")
+    teacher_is_correct = models.BooleanField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_submissions",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
     # VALIDATION
     def clean(self):
         if self.student.tenant != self.exercise.course.tenant:
@@ -254,6 +329,10 @@ class Submission(models.Model):
 
 
 class SubmissionMessage(models.Model):
+    """
+        Stores conversation between student and AI tutor for a submission.
+        Messages are append-only and ordered chronologically to preserve full conversation history for LLM context.
+    """
     class Role(models.TextChoices):
         STUDENT = "student", "Student"
         ASSISTANT = "assistant", "Assistant"
