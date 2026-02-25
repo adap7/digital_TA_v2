@@ -163,3 +163,148 @@ class TopicParentTest(APITestCase):
         })
 
         self.assertEqual(response.status_code, 400)
+
+
+class TopicCRUDTest(APITestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="Test3", slug="test3")
+
+        self.admin = User.objects.create_user(
+            email="admin3@test.com",
+            password="pass",
+            role="admin",
+            tenant=self.tenant,
+        )
+        self.teacher = User.objects.create_user(
+            email="teacher3@test.com",
+            password="pass",
+            role="teacher",
+            tenant=self.tenant,
+        )
+        self.teacher_unassigned = User.objects.create_user(
+            email="teacher3b@test.com",
+            password="pass",
+            role="teacher",
+            tenant=self.tenant,
+        )
+        self.student = User.objects.create_user(
+            email="student3@test.com",
+            password="pass",
+            role="student",
+            tenant=self.tenant,
+        )
+        self.student_unenrolled = User.objects.create_user(
+            email="student3b@test.com",
+            password="pass",
+            role="student",
+            tenant=self.tenant,
+        )
+
+        self.course = Course.objects.create(
+            tenant=self.tenant, title="CS", code="CS301"
+        )
+        CourseMembership.objects.create(user=self.teacher, course=self.course, role="teacher")
+        CourseMembership.objects.create(user=self.student, course=self.course, role="student")
+
+        self.published = Topic.objects.create(
+            course=self.course, title="Published Topic", order_index=1, is_published=True
+        )
+        self.draft = Topic.objects.create(
+            course=self.course, title="Draft Topic", order_index=2, is_published=False
+        )
+
+    def detail_url(self, topic):
+        return f"/api/v1/topics/{topic.id}/"
+
+    def list_url(self):
+        return f"/api/v1/courses/{self.course.id}/topics/"
+
+    # --- GET detail ---
+
+    def test_enrolled_student_can_get_published_topic(self):
+        self.client.login(email="student3@test.com", password="pass")
+        self.assertEqual(self.client.get(self.detail_url(self.published)).status_code, 200)
+
+    def test_enrolled_student_cannot_get_draft_topic(self):
+        self.client.login(email="student3@test.com", password="pass")
+        self.assertEqual(self.client.get(self.detail_url(self.draft)).status_code, 404)
+
+    def test_unenrolled_student_cannot_get_published_topic(self):
+        self.client.login(email="student3b@test.com", password="pass")
+        self.assertEqual(self.client.get(self.detail_url(self.published)).status_code, 404)
+
+    def test_teacher_can_get_draft_topic(self):
+        self.client.login(email="teacher3@test.com", password="pass")
+        self.assertEqual(self.client.get(self.detail_url(self.draft)).status_code, 200)
+
+    def test_admin_can_get_any_topic(self):
+        self.client.login(email="admin3@test.com", password="pass")
+        self.assertEqual(self.client.get(self.detail_url(self.published)).status_code, 200)
+        self.assertEqual(self.client.get(self.detail_url(self.draft)).status_code, 200)
+
+    # --- PATCH ---
+
+    def test_assigned_teacher_can_patch_topic(self):
+        self.client.login(email="teacher3@test.com", password="pass")
+        response = self.client.patch(
+            self.detail_url(self.published),
+            {"title": "Updated"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["title"], "Updated")
+
+    def test_unassigned_teacher_cannot_patch_topic(self):
+        self.client.login(email="teacher3b@test.com", password="pass")
+        response = self.client.patch(
+            self.detail_url(self.published),
+            {"title": "Hacked"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_student_cannot_patch_topic(self):
+        self.client.login(email="student3@test.com", password="pass")
+        response = self.client.patch(
+            self.detail_url(self.published),
+            {"title": "Hacked"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_admin_can_patch_topic(self):
+        self.client.login(email="admin3@test.com", password="pass")
+        response = self.client.patch(
+            self.detail_url(self.published),
+            {"title": "Admin Edit"},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    # --- DELETE ---
+
+    def test_assigned_teacher_can_delete_topic(self):
+        self.client.login(email="teacher3@test.com", password="pass")
+        self.assertEqual(self.client.delete(self.detail_url(self.draft)).status_code, 204)
+        self.assertFalse(Topic.objects.filter(id=self.draft.id).exists())
+
+    def test_unassigned_teacher_cannot_delete_topic(self):
+        self.client.login(email="teacher3b@test.com", password="pass")
+        self.assertEqual(self.client.delete(self.detail_url(self.published)).status_code, 403)
+
+    def test_student_cannot_delete_topic(self):
+        self.client.login(email="student3@test.com", password="pass")
+        self.assertEqual(self.client.delete(self.detail_url(self.published)).status_code, 403)
+
+    # --- List-level permission ---
+
+    def test_unenrolled_student_gets_empty_list(self):
+        self.client.login(email="student3b@test.com", password="pass")
+        response = self.client.get(self.list_url())
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 0)
+
+    def test_unassigned_teacher_cannot_create_topic(self):
+        self.client.login(email="teacher3b@test.com", password="pass")
+        response = self.client.post(self.list_url(), {"title": "Sneaky", "order_index": 99})
+        self.assertEqual(response.status_code, 403)
