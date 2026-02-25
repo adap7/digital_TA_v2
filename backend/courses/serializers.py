@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Course, Exercise, Submission, SubmissionMessage
+from .models import Course, CourseMembership, Exercise, Submission, SubmissionMessage
 
 class CourseListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -32,6 +32,20 @@ class SubmissionTeacherSerializer(serializers.ModelSerializer):
     class Meta:
         model = Submission
         fields = ["id", "exercise", "student", "answer", "attempt_number", "is_correct", "submitted_at", "messages"]
+
+
+class CourseMembershipSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        model = CourseMembership
+        fields = ["id", "user", "user_email", "role", "is_super_teacher", "joined_at"]
+
+
+class CourseMembershipCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseMembership
+        fields = ["user", "role", "is_super_teacher"]
 
 
 class ExerciseStudentSerializer(serializers.ModelSerializer):

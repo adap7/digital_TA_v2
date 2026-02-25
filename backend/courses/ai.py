@@ -1,5 +1,3 @@
-import anthropic
-from openai import OpenAI
 from django.conf import settings
 
 MODEL_CLAUDE   = "claude-sonnet-4-6"
@@ -58,6 +56,7 @@ def _format_answer(student_answer: dict) -> str:
 
 
 def _call_claude(system: str, messages: list) -> str:
+    import anthropic
     client = anthropic.Anthropic()
     response = client.messages.create(
         model=MODEL_CLAUDE,
@@ -69,6 +68,7 @@ def _call_claude(system: str, messages: list) -> str:
 
 
 def _call_openai(model: str, system: str, messages: list, api_key: str, base_url: str = None) -> str:
+    from openai import OpenAI
     kwargs = {"api_key": api_key}
     if base_url:
         kwargs["base_url"] = base_url

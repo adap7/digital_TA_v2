@@ -12,6 +12,8 @@ from .models import Course, Exercise, CourseMembership, Submission, SubmissionMe
 from .serializers import (
     CourseListSerializer,
     CourseDetailSerializer,
+    CourseMembershipSerializer,
+    CourseMembershipCreateSerializer,
     ExerciseStudentSerializer,
     ExerciseTeacherSerializer,
     SubmissionSerializer,
@@ -394,3 +396,112 @@ class SubmissionMessageView(APIView):
         )
 
         return Response(SubmissionMessageSerializer(ai_message).data, status=201)
+
+
+# MEMBERSHIP MANAGEMENT
+
+def _is_super_teacher_of(user, course):
+    """True if user is a teacher assigned to course with is_super_teacher=True."""
+    return CourseMembership.objects.filter(
+        user=user,
+        course=course,
+        role=CourseMembership.Role.TEACHER,
+        is_super_teacher=True,
+    ).exists()
+
+
+class CourseMemberListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_course(self, request, course_id):
+        return get_object_or_404(
+            Course,
+            id=course_id,
+            tenant=request.user.tenant,
+        )
+
+    def get(self, request, course_id):
+        user = request.user
+        course = self._get_course(request, course_id)
+
+        if user.role == UserRole.STUDENT:
+            return Response(status=403)
+
+        if user.role == UserRole.TEACHER:
+            if not CourseMembership.objects.filter(
+                course=course,
+                user=user,
+                role=CourseMembership.Role.TEACHER,
+            ).exists():
+                return Response({"detail": "Not assigned to this course."}, status=403)
+
+        memberships = CourseMembership.objects.filter(course=course).select_related("user")
+        return Response(CourseMembershipSerializer(memberships, many=True).data)
+
+    def post(self, request, course_id):
+        user = request.user
+        course = self._get_course(request, course_id)
+
+        is_admin = user.role == UserRole.ADMIN
+        is_super = _is_super_teacher_of(user, course)
+
+        if not is_admin and not is_super:
+            return Response({"detail": "Only admins or super teachers can manage members."}, status=403)
+
+        serializer = CourseMembershipCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        target_user = serializer.validated_data["user"]
+        role = serializer.validated_data["role"]
+        wants_super = serializer.validated_data.get("is_super_teacher", False)
+
+        # Tenant check
+        if target_user.tenant != course.tenant:
+            return Response({"detail": "User does not belong to this tenant."}, status=400)
+
+        # Super teachers cannot grant super teacher status
+        if not is_admin and wants_super:
+            return Response({"detail": "Only admins can assign super teacher status."}, status=403)
+
+        try:
+            membership = CourseMembership.objects.create(
+                user=target_user,
+                course=course,
+                role=role,
+                is_super_teacher=wants_super if is_admin else False,
+            )
+        except Exception:
+            return Response({"detail": "Membership already exists."}, status=400)
+
+        return Response(CourseMembershipSerializer(membership).data, status=201)
+
+
+class CourseMemberDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_course(self, request, course_id):
+        return get_object_or_404(
+            Course,
+            id=course_id,
+            tenant=request.user.tenant,
+        )
+
+    def delete(self, request, course_id, pk):
+        user = request.user
+        course = self._get_course(request, course_id)
+
+        is_admin = user.role == UserRole.ADMIN
+        is_super = _is_super_teacher_of(user, course)
+
+        if not is_admin and not is_super:
+            return Response({"detail": "Only admins or super teachers can remove members."}, status=403)
+
+        membership = get_object_or_404(CourseMembership, pk=pk, course=course)
+
+        # Super teachers can only remove students, not teachers
+        if not is_admin and membership.role != CourseMembership.Role.STUDENT:
+            return Response({"detail": "Super teachers can only remove students."}, status=403)
+
+        membership.delete()
+        return Response(status=204)

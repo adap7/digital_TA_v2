@@ -52,6 +52,7 @@ class CourseMembership(models.Model):
         max_length=20,
         choices=Role.choices,
     )
+    is_super_teacher = models.BooleanField(default=False)
 
     joined_at = models.DateTimeField(auto_now_add=True)
 
