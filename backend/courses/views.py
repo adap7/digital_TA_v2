@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
+from django.db.models import Max, Subquery, OuterRef
 from .models import Course, Exercise, CourseMembership, Submission, SubmissionMessage
 from .serializers import (
     CourseListSerializer,
@@ -541,3 +542,138 @@ class SubmissionReviewView(APIView):
         serializer.save(reviewed_by=user, reviewed_at=timezone.now())
 
         return Response(SubmissionTeacherSerializer(submission).data)
+
+
+# STUDENT PROGRESS
+
+def _effective_correct(submission):
+    """Return teacher verdict if set, else AI verdict. None = ungraded."""
+    if submission.teacher_is_correct is not None:
+        return submission.teacher_is_correct
+    return submission.is_correct
+
+
+def _latest_submissions_for(course, student):
+    """Return one submission per exercise (highest attempt_number) for a student."""
+    latest_attempt = Subquery(
+        Submission.objects.filter(
+            exercise=OuterRef("exercise"),
+            student=student,
+        ).order_by("-attempt_number").values("attempt_number")[:1]
+    )
+    return Submission.objects.filter(
+        exercise__course=course,
+        exercise__status=Exercise.Status.PUBLISHED,
+        student=student,
+        attempt_number=latest_attempt,
+    ).select_related("exercise__topic")
+
+
+def _student_progress(course, student):
+    """Compute per-student progress dict."""
+    published_exercises = Exercise.objects.filter(
+        course=course, status=Exercise.Status.PUBLISHED
+    )
+    total = published_exercises.count()
+
+    submissions = list(_latest_submissions_for(course, student))
+    attempted = len(submissions)
+    correct = sum(1 for s in submissions if _effective_correct(s) is True)
+    correct_rate = round(correct / attempted, 4) if attempted else 0
+
+    # Per-topic breakdown
+    topics_map = {}
+    for ex in published_exercises.select_related("topic"):
+        tid = ex.topic_id
+        title = ex.topic.title if ex.topic else "Uncategorised"
+        if tid not in topics_map:
+            topics_map[tid] = {"topic_id": tid, "topic_title": title, "total_exercises": 0, "attempted": 0, "correct": 0}
+        topics_map[tid]["total_exercises"] += 1
+
+    for s in submissions:
+        tid = s.exercise.topic_id
+        if tid not in topics_map:
+            title = s.exercise.topic.title if s.exercise.topic else "Uncategorised"
+            topics_map[tid] = {"topic_id": tid, "topic_title": title, "total_exercises": 0, "attempted": 0, "correct": 0}
+        topics_map[tid]["attempted"] += 1
+        if _effective_correct(s) is True:
+            topics_map[tid]["correct"] += 1
+
+    return {
+        "course_id": course.id,
+        "student_id": student.id,
+        "total_exercises": total,
+        "attempted": attempted,
+        "correct": correct,
+        "correct_rate": correct_rate,
+        "topics": list(topics_map.values()),
+    }
+
+
+class CourseProgressView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, course_id):
+        user = request.user
+        course = get_object_or_404(Course, id=course_id, tenant=user.tenant)
+
+        student_id = request.query_params.get("student")
+
+        # Students can only see their own progress
+        if user.role == UserRole.STUDENT:
+            if student_id:
+                return Response({"detail": "Students cannot query other students' progress."}, status=403)
+            if not CourseMembership.objects.filter(
+                course=course, user=user, role=CourseMembership.Role.STUDENT
+            ).exists():
+                return Response({"detail": "Not enrolled in this course."}, status=403)
+            return Response(_student_progress(course, user))
+
+        # Teachers must be assigned
+        if user.role == UserRole.TEACHER:
+            if not CourseMembership.objects.filter(
+                course=course, user=user, role=CourseMembership.Role.TEACHER
+            ).exists():
+                return Response({"detail": "Not assigned to this course."}, status=403)
+
+        # Teacher or admin: single student via ?student=<id>
+        if student_id:
+            from users.models import User as UserModel
+            student = get_object_or_404(UserModel, id=student_id, tenant=user.tenant)
+            return Response(_student_progress(course, student))
+
+        # Aggregate across all enrolled students
+        enrolled = CourseMembership.objects.filter(
+            course=course, role=CourseMembership.Role.STUDENT
+        ).select_related("user")
+
+        rates = []
+        topics_agg = {}
+
+        for membership in enrolled:
+            data = _student_progress(course, membership.user)
+            rates.append(data["correct_rate"])
+            for t in data["topics"]:
+                tid = t["topic_id"]
+                if tid not in topics_agg:
+                    topics_agg[tid] = {"topic_id": tid, "topic_title": t["topic_title"], "rates": []}
+                if t["attempted"]:
+                    topics_agg[tid]["rates"].append(round(t["correct"] / t["attempted"], 4))
+
+        avg_rate = round(sum(rates) / len(rates), 4) if rates else 0
+
+        topics_out = [
+            {
+                "topic_id": v["topic_id"],
+                "topic_title": v["topic_title"],
+                "average_correct_rate": round(sum(v["rates"]) / len(v["rates"]), 4) if v["rates"] else 0,
+            }
+            for v in topics_agg.values()
+        ]
+
+        return Response({
+            "course_id": course.id,
+            "enrolled_students": len(rates),
+            "average_correct_rate": avg_rate,
+            "topics": topics_out,
+        })
