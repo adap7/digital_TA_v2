@@ -23,7 +23,11 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Submission
-        fields = ["id", "exercise", "answer", "attempt_number", "is_correct", "submitted_at", "messages"]
+        fields = [
+            "id", "exercise", "answer", "attempt_number", "is_correct", "submitted_at",
+            "teacher_comment", "teacher_is_correct",
+            "messages",
+        ]
 
 
 class SubmissionTeacherSerializer(serializers.ModelSerializer):
@@ -31,7 +35,17 @@ class SubmissionTeacherSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Submission
-        fields = ["id", "exercise", "student", "answer", "attempt_number", "is_correct", "submitted_at", "messages"]
+        fields = [
+            "id", "exercise", "student", "answer", "attempt_number", "is_correct", "submitted_at",
+            "teacher_comment", "teacher_is_correct", "reviewed_by", "reviewed_at",
+            "messages",
+        ]
+
+
+class SubmissionReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Submission
+        fields = ["teacher_comment", "teacher_is_correct"]
 
 
 class CourseMembershipSerializer(serializers.ModelSerializer):

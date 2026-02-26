@@ -6,6 +6,7 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .models import Course, Exercise, CourseMembership, Submission, SubmissionMessage
@@ -18,6 +19,7 @@ from .serializers import (
     ExerciseTeacherSerializer,
     SubmissionSerializer,
     SubmissionTeacherSerializer,
+    SubmissionReviewSerializer,
     SubmissionMessageSerializer,
 )
 from .permissions import IsTeacherOrAdmin
@@ -505,3 +507,37 @@ class CourseMemberDetailView(APIView):
 
         membership.delete()
         return Response(status=204)
+
+
+# SUBMISSION REVIEW
+
+class SubmissionReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        user = request.user
+
+        if user.role == UserRole.STUDENT:
+            return Response({"detail": "Students cannot review submissions."}, status=403)
+
+        submission = get_object_or_404(
+            Submission,
+            pk=pk,
+            exercise__course__tenant=user.tenant,
+        )
+
+        if user.role == UserRole.TEACHER:
+            if not CourseMembership.objects.filter(
+                course=submission.exercise.course,
+                user=user,
+                role=CourseMembership.Role.TEACHER,
+            ).exists():
+                return Response({"detail": "Not assigned to this course."}, status=403)
+
+        serializer = SubmissionReviewSerializer(submission, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        serializer.save(reviewed_by=user, reviewed_at=timezone.now())
+
+        return Response(SubmissionTeacherSerializer(submission).data)

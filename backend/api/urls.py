@@ -9,6 +9,7 @@ from courses.views import (
     ExerciseSubmissionListView,
     SubmissionDetailView,
     SubmissionMessageView,
+    SubmissionReviewView,
 )
 from django.urls import include, path
 
@@ -25,4 +26,5 @@ urlpatterns = [
     path("exercises/<int:exercise_id>/submissions/", ExerciseSubmissionListView.as_view()),
     path("submissions/<int:pk>/", SubmissionDetailView.as_view()),
     path("submissions/<int:pk>/messages/", SubmissionMessageView.as_view()),
+    path("submissions/<int:pk>/review/", SubmissionReviewView.as_view()),
 ]
