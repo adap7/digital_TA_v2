@@ -84,3 +84,12 @@ class ExerciseTeacherSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exercise
         fields = "__all__"
+
+
+class ExerciseWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Exercise
+        fields = [
+            "topic", "title", "type", "prompt",
+            "choices", "answer_key", "difficulty", "order_index",
+        ]

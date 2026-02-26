@@ -8,6 +8,8 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import IntegrityError
 
 from django.db.models import Max, Subquery, OuterRef
 from .models import Course, Exercise, CourseMembership, Submission, SubmissionMessage
@@ -18,6 +20,7 @@ from .serializers import (
     CourseMembershipCreateSerializer,
     ExerciseStudentSerializer,
     ExerciseTeacherSerializer,
+    ExerciseWriteSerializer,
     SubmissionSerializer,
     SubmissionTeacherSerializer,
     SubmissionReviewSerializer,
@@ -94,6 +97,8 @@ class CourseExerciseListView(generics.ListCreateAPIView):
     def get_serializer_class(self):
         if self.request.user.role == UserRole.STUDENT:
             return ExerciseStudentSerializer
+        if self.request.method == "POST":
+            return ExerciseWriteSerializer
         return ExerciseTeacherSerializer
 
     def perform_create(self, serializer):
@@ -118,7 +123,16 @@ class CourseExerciseListView(generics.ListCreateAPIView):
         if topic and topic.course != course:
             raise ValidationError("Topic must belong to the same course.")
 
-        serializer.save(course=course, created_by=user)
+        try:
+            instance = serializer.save(course=course, created_by=user)
+        except IntegrityError:
+            raise ValidationError({"order_index": "An exercise with this order already exists in the course."})
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as e:
+            instance.delete()
+            raise ValidationError(e.message_dict)
 
 # EXERCISE DETAIL
 class ExerciseDetailView(generics.RetrieveUpdateAPIView):
@@ -146,6 +160,8 @@ class ExerciseDetailView(generics.RetrieveUpdateAPIView):
     def get_serializer_class(self):
         if self.request.user.role == UserRole.STUDENT:
             return ExerciseStudentSerializer
+        if self.request.method in ("PUT", "PATCH"):
+            return ExerciseWriteSerializer
         return ExerciseTeacherSerializer
 
     def update(self, request, *args, **kwargs):
@@ -164,6 +180,10 @@ class ExerciseDetailView(generics.RetrieveUpdateAPIView):
             ).exists():
                 raise PermissionDenied("Not assigned to this course.")
         super().perform_update(serializer)
+        try:
+            serializer.instance.full_clean()
+        except DjangoValidationError as e:
+            raise ValidationError(e.message_dict)
 
 # WORKFLOW
 class SubmitForReviewView(APIView):

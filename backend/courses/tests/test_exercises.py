@@ -323,4 +323,96 @@ class ExerciseVisibilityTest(APITestCase):
         response = self.client.get(
             f"/api/v1/courses/{self.course.id}/exercises/"
         )
+
         self.assertEqual(response.status_code, 404)
+
+
+class ExerciseValidationTest(APITestCase):
+    """Tests for Issue 13: write serializer protection and model validation."""
+
+    def setUp(self):
+        self.tenant = Tenant.objects.create(name="Uni", slug="uni")
+        self.teacher = User.objects.create_user(
+            email="teacher@uni.com", password="pass", role="teacher", tenant=self.tenant
+        )
+        self.course = Course.objects.create(tenant=self.tenant, title="Math", code="M101")
+        CourseMembership.objects.create(
+            course=self.course, user=self.teacher, role=CourseMembership.Role.TEACHER
+        )
+        self.exercise = Exercise.objects.create(
+            course=self.course, title="Q1", type=Exercise.Type.FREE_TEXT,
+            prompt="Solve.", difficulty=1, order_index=0, created_by=self.teacher,
+        )
+
+    def _create_url(self):
+        return f"/api/v1/courses/{self.course.id}/exercises/"
+
+    def _detail_url(self):
+        return f"/api/v1/exercises/{self.exercise.id}/"
+
+    def test_create_mcq_without_choices_returns_400(self):
+        self.client.force_authenticate(self.teacher)
+        response = self.client.post(
+            self._create_url(),
+            {"type": "mcq", "prompt": "Pick one.", "order_index": 1},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_free_text_with_choices_returns_400(self):
+        self.client.force_authenticate(self.teacher)
+        response = self.client.post(
+            self._create_url(),
+            {"type": "free_text", "prompt": "Explain.", "order_index": 1,
+             "choices": ["A", "B"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_patch_mcq_type_to_free_text_without_removing_choices_returns_400(self):
+        mcq = Exercise.objects.create(
+            course=self.course, title="MCQ", type=Exercise.Type.MCQ,
+            prompt="Pick.", choices=["A", "B"], order_index=1, created_by=self.teacher,
+        )
+        self.client.force_authenticate(self.teacher)
+        response = self.client.patch(
+            f"/api/v1/exercises/{mcq.id}/",
+            {"type": "free_text"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_patch_status_directly_is_ignored(self):
+        self.client.force_authenticate(self.teacher)
+        response = self.client.patch(
+            self._detail_url(),
+            {"status": "published"},
+            format="json",
+        )
+        # Field not in write serializer — ignored, request succeeds
+        self.assertIn(response.status_code, [200, 400])
+        self.exercise.refresh_from_db()
+        self.assertEqual(self.exercise.status, Exercise.Status.DRAFT)
+
+    def test_patch_created_by_directly_is_ignored(self):
+        other = User.objects.create_user(
+            email="other@uni.com", password="pass", role="teacher", tenant=self.tenant
+        )
+        self.client.force_authenticate(self.teacher)
+        self.client.patch(
+            self._detail_url(),
+            {"created_by": other.id},
+            format="json",
+        )
+        self.exercise.refresh_from_db()
+        self.assertEqual(self.exercise.created_by, self.teacher)
+
+    def test_duplicate_order_index_returns_400(self):
+        # exercise already exists with order_index=0
+        self.client.force_authenticate(self.teacher)
+        response = self.client.post(
+            self._create_url(),
+            {"type": "free_text", "prompt": "Another.", "order_index": 0},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
